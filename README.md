@@ -4,19 +4,7 @@ Browser-based tool to lay out trading card images for printing on A4 paper. Uplo
 
 ## Live site
 
-After you enable GitHub Pages (see below), the app is served from the repository root as a static site:
-
-- **Project site:** `https://<your-username>.github.io/PrintTCG.github.io/`
-
-## GitHub Pages setup
-
-1. Push this repository to GitHub (include `index.html` at the repo root).
-2. Open the repo on GitHub → **Settings** → **Pages**.
-3. Under **Build and deployment**, set **Source** to **Deploy from a branch**.
-4. Choose branch **`main`** (or **`master`**) and folder **`/ (root)`**, then **Save**.
-5. Wait a minute for the deployment; refresh **Pages** to see the public URL.
-
-No build step or GitHub Actions workflow is required—GitHub Pages serves `index.html` directly.
+- **Project site:** `https://Alex123td.github.io/PrintTCG.github.io/`
 
 ## Privacy
 
