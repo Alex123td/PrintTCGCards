@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Print Cards</title>
+  <title>Print TCG</title>
+  <meta name="description" content="Upload TCG card images, build a print list, and print on A4 with standard card sizes.">
   <style>
     * {
       margin: 0;
@@ -15,6 +16,7 @@
       --card-w: 63mm;
       --card-h: 88mm;
       --page-margin: 10mm;
+      --card-gap: 2mm;
     }
 
     body {
@@ -114,6 +116,43 @@
       background-color: #1d4ed8;
     }
 
+    .btn-danger {
+      background-color: #dc2626;
+      color: white;
+      border-color: #dc2626;
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      background-color: #b91c1c;
+      border-color: #b91c1c;
+    }
+
+    .btn-danger:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .action-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      background: white;
+      border-radius: 0.5rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    .action-bar .btn {
+      min-width: 9rem;
+      font-weight: 600;
+    }
+
+    .action-bar .btn-danger:not(:disabled) {
+      box-shadow: 0 1px 2px rgba(220, 38, 38, 0.35);
+    }
+
     .margin-input {
       width: 4.5rem;
       padding: 0.5rem 0.5rem;
@@ -180,6 +219,8 @@
       cursor: pointer;
       text-align: center;
       background: #f9fafb;
+      position: relative;
+      overflow: hidden;
     }
 
     .library-item:hover {
@@ -295,7 +336,7 @@
       display: grid;
       grid-template-columns: repeat(3, var(--card-w));
       grid-auto-rows: var(--card-h);
-      gap: 0;
+      gap: var(--card-gap);
     }
 
     .card-item {
@@ -303,6 +344,8 @@
       height: var(--card-h);
       overflow: hidden;
       border: none;
+      position: relative;
+      background: #fff;
     }
 
     .card-item img {
@@ -310,6 +353,27 @@
       height: 100%;
       object-fit: cover;
       display: block;
+    }
+
+    .card-item img.portrait-corrected {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: auto;
+      height: 100%;
+      max-width: none;
+      transform: translate(-50%, -50%) rotate(90deg);
+      object-fit: cover;
+    }
+
+    .library-item img.portrait-corrected {
+      transform: rotate(90deg) scale(1.35);
+      transform-origin: center center;
+    }
+
+    .print-list img.portrait-corrected {
+      transform: rotate(90deg) scale(1.2);
+      transform-origin: center center;
     }
 
     .footer {
@@ -375,7 +439,7 @@
 <body>
   <div class="no-print container">
     <div class="header">
-      <h1>Print Cards</h1>
+      <h1>Print TCG</h1>
       <p id="summary">Upload an image folder, build your list, then print.</p>
     </div>
 
@@ -395,11 +459,22 @@
         </div>
       </div>
       <div class="control-group">
+        <label for="cardGapInput">Gap between cards</label>
+        <div class="margin-row">
+          <input type="number" id="cardGapInput" class="margin-input" min="0" max="10" step="1" value="2" aria-label="Gap between cards in millimeters">
+          <span class="margin-unit">mm</span>
+        </div>
+      </div>
+      <div class="control-group">
         <label>Images</label>
         <button type="button" class="btn" id="btnUploadFolder">Upload image folder</button>
         <input type="file" id="folderInput" webkitdirectory directory multiple accept="image/*">
       </div>
+    </div>
+
+    <div class="action-bar">
       <button type="button" class="btn btn-primary" onclick="window.print()">Print all cards</button>
+      <button type="button" class="btn btn-danger" id="btnClearPrintList">Remove All</button>
     </div>
 
     <div class="panels">
@@ -412,7 +487,7 @@
       </div>
       <div class="panel">
         <h2>Print list</h2>
-        <p class="panel-hint">Set quantity per card. Layout is 3×3 per A4 page, borderless, with the page margin you choose above.</p>
+        <p class="panel-hint">Set quantity per card. Landscape images are rotated automatically to portrait. Layout is 3×3 per A4 page with adjustable gaps.</p>
         <ul class="print-list" id="printList"></ul>
       </div>
     </div>
@@ -423,8 +498,9 @@
 
     <div class="footer">
       <p id="footerSummary"></p>
-      <p>• Borderless cards, placed card-by-card in a 3×3 grid</p>
+      <p>• Cards in a 3×3 grid with spacing between them</p>
       <p id="marginFooter"></p>
+      <p id="gapFooter"></p>
       <p id="sizeFooter"></p>
     </div>
   </div>
@@ -457,10 +533,15 @@
 
     const PAGE_MARGIN_MIN = 0;
     const PAGE_MARGIN_MAX = 30;
+    const CARD_GAP_MIN = 0;
+    const CARD_GAP_MAX = 10;
+    const A4_W_MM = 210;
+    const A4_H_MM = 297;
 
     let cardSizeKey = '63x88';
     let pageMarginMm = 10;
-    /** @type {Map<string, { id: string, name: string, src: string, mimeType: string }>} */
+    let cardGapMm = 2;
+    /** @type {Map<string, { id: string, name: string, src: string, mimeType: string, rotate90: boolean }>} */
     let libraryMap = new Map();
     /** @type {{ id: string, quantity: number }[]} */
     let printList = [];
@@ -505,6 +586,7 @@
         JSON.stringify({
           cardSizeKey,
           pageMarginMm,
+          cardGapMm,
           printList,
         })
       );
@@ -520,6 +602,9 @@
         }
         if (typeof data.pageMarginMm === 'number' && Number.isFinite(data.pageMarginMm)) {
           pageMarginMm = data.pageMarginMm;
+        }
+        if (typeof data.cardGapMm === 'number' && Number.isFinite(data.cardGapMm)) {
+          cardGapMm = data.cardGapMm;
         }
         if (Array.isArray(data.printList)) {
           printList = data.printList
@@ -551,10 +636,36 @@
       }
     }
 
+    function cardSizeMm() {
+      const s = SIZES[cardSizeKey];
+      return {
+        w: parseFloat(s.w),
+        h: parseFloat(s.h),
+      };
+    }
+
+    function maxCardGapMm() {
+      const { w, h } = cardSizeMm();
+      const availW = A4_W_MM - 2 * pageMarginMm;
+      const availH = A4_H_MM - 2 * pageMarginMm;
+      const fromW = (availW - 3 * w) / 2;
+      const fromH = (availH - 3 * h) / 2;
+      const max = Math.min(fromW, fromH);
+      if (!Number.isFinite(max)) return 0;
+      return Math.max(0, Math.floor(max * 10) / 10);
+    }
+
     function clampPageMargin(mm) {
       const n = Math.round(Number(mm));
       if (!Number.isFinite(n)) return 10;
       return Math.min(PAGE_MARGIN_MAX, Math.max(PAGE_MARGIN_MIN, n));
+    }
+
+    function clampCardGap(mm) {
+      const n = Math.round(Number(mm));
+      if (!Number.isFinite(n)) return 2;
+      const max = maxCardGapMm();
+      return Math.min(CARD_GAP_MAX, max, Math.max(CARD_GAP_MIN, n));
     }
 
     function setPageMargin(mm, persist = true) {
@@ -563,7 +674,20 @@
       document.getElementById('pageMarginInput').value = String(pageMarginMm);
       document.getElementById('marginFooter').textContent =
         `• ${pageMarginMm} mm margin from page edges`;
+      setCardGap(cardGapMm, persist);
       if (persist) saveMeta();
+    }
+
+    function setCardGap(mm, persist = true) {
+      cardGapMm = clampCardGap(mm);
+      document.documentElement.style.setProperty('--card-gap', `${cardGapMm}mm`);
+      const gapInput = document.getElementById('cardGapInput');
+      gapInput.value = String(cardGapMm);
+      gapInput.max = String(Math.min(CARD_GAP_MAX, maxCardGapMm()));
+      document.getElementById('gapFooter').textContent =
+        `• ${cardGapMm} mm gap between cards (max ${maxCardGapMm()} mm for current size and page margin)`;
+      if (persist) saveMeta();
+      renderPages();
     }
 
     function setCardSize(key, persist = true) {
@@ -575,6 +699,7 @@
       document.getElementById('btnSize63').classList.toggle('active', key === '63x88');
       document.getElementById('sizeFooter').textContent = `• Current size: ${s.label}`;
       if (persist) saveMeta();
+      setCardGap(cardGapMm, false);
       renderPages();
     }
 
@@ -585,6 +710,19 @@
 
     function stableImageId(relativePath) {
       return `img:${relativePath.replace(/\\/g, '/').toLowerCase()}`;
+    }
+
+    function imgClassAttr(rotate90) {
+      return rotate90 ? ' class="portrait-corrected"' : '';
+    }
+
+    function detectRotate90(src) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img.naturalWidth > img.naturalHeight);
+        img.onerror = () => resolve(false);
+        img.src = src;
+      });
     }
 
     function renderLibrary() {
@@ -598,7 +736,7 @@
         .map(
           (item) => `
         <div class="library-item" data-id="${escapeAttr(item.id)}" title="Add to print list">
-          <img src="${escapeAttr(item.src)}" alt="" loading="lazy">
+          <img src="${escapeAttr(item.src)}" alt="" loading="lazy"${imgClassAttr(item.rotate90)}>
           <span>${escapeHtml(item.name)}</span>
         </div>`
         )
@@ -618,6 +756,19 @@
       saveMeta();
     }
 
+    function clearPrintList() {
+      if (!printList.length) {
+        alert('The print list is already empty.');
+        return;
+      }
+      if (!confirm('Remove every card from the print list? Uploaded images stay in your library.')) {
+        return;
+      }
+      printList = [];
+      saveMeta();
+      renderPrintList();
+    }
+
     function renderPrintList() {
       syncPrintListWithLibrary();
       const ul = document.getElementById('printList');
@@ -632,7 +783,7 @@
           if (!item) return '';
           return `
         <li data-index="${index}">
-          <img src="${escapeAttr(item.src)}" alt="">
+          <img src="${escapeAttr(item.src)}" alt=""${imgClassAttr(item.rotate90)}>
           <span class="name">${escapeHtml(item.name)}</span>
           <input type="number" class="qty-input" min="0" max="999" value="${row.quantity}" aria-label="Quantity">
           <button type="button" class="btn-remove">Remove</button>
@@ -729,7 +880,7 @@
                 .map(
                   (card) => `
                 <div class="card-item">
-                  <img src="${escapeAttr(card.src)}" alt="">
+                  <img src="${escapeAttr(card.src)}" alt=""${imgClassAttr(card.rotate90)}>
                 </div>`
                 )
                 .join('')}
@@ -764,11 +915,13 @@
         const prev = libraryMap.get(id);
         if (prev) revokeSrc(prev.src);
 
-        await dbPutImage({ id, name, mimeType, data: buffer });
-
         const blob = new Blob([buffer], { type: mimeType });
         const src = URL.createObjectURL(blob);
-        libraryMap.set(id, { id, name, src, mimeType });
+        const rotate90 = await detectRotate90(src);
+
+        await dbPutImage({ id, name, mimeType, data: buffer, rotate90 });
+
+        libraryMap.set(id, { id, name, src, mimeType, rotate90 });
       }
 
       saveMeta();
@@ -783,14 +936,28 @@
       for (const rec of records) {
         if (!rec?.id || !rec.data) continue;
         const blob = new Blob([rec.data], { type: rec.mimeType || 'image/png' });
+        const src = URL.createObjectURL(blob);
+        let rotate90 =
+          typeof rec.rotate90 === 'boolean' ? rec.rotate90 : await detectRotate90(src);
+        if (typeof rec.rotate90 !== 'boolean') {
+          await dbPutImage({
+            id: rec.id,
+            name: rec.name || fileNameFromPath(rec.id),
+            mimeType: rec.mimeType || 'image/png',
+            data: rec.data,
+            rotate90,
+          });
+        }
         libraryMap.set(rec.id, {
           id: rec.id,
           name: rec.name || fileNameFromPath(rec.id),
-          src: URL.createObjectURL(blob),
+          src,
           mimeType: rec.mimeType || 'image/png',
+          rotate90,
         });
       }
       setPageMargin(pageMarginMm, false);
+      setCardGap(cardGapMm, false);
       setCardSize(cardSizeKey, false);
       renderLibrary();
       renderPrintList();
@@ -807,6 +974,15 @@
     document.getElementById('pageMarginInput').addEventListener('blur', (e) => {
       setPageMargin(e.target.value);
     });
+    document.getElementById('cardGapInput').addEventListener('change', (e) => {
+      setCardGap(e.target.value);
+    });
+    document.getElementById('cardGapInput').addEventListener('input', (e) => {
+      setCardGap(e.target.value, false);
+    });
+    document.getElementById('cardGapInput').addEventListener('blur', (e) => {
+      setCardGap(e.target.value);
+    });
     document.getElementById('btnUploadFolder').addEventListener('click', () => {
       document.getElementById('folderInput').click();
     });
@@ -814,9 +990,11 @@
       if (e.target.files?.length) loadFromFolder(e.target.files);
       e.target.value = '';
     });
+    document.getElementById('btnClearPrintList').addEventListener('click', clearPrintList);
 
     restoreFromStorage().catch(() => {
       setPageMargin(10, false);
+      setCardGap(2, false);
       setCardSize('63x88', false);
       renderLibrary();
       renderPrintList();
