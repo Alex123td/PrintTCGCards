@@ -4,7 +4,7 @@ Browser-based tool to lay out trading card images for printing on A4 paper. Uplo
 
 ## Live site
 
-- **Project site:** `https://Alex123td.github.io/PrintTCG.github.io/`
+- **Project site:** `https://Alex123td.github.io/PrintTCGCards/`
 
 ## Privacy
 
